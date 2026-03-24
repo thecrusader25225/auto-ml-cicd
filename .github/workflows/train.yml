@@ -6,6 +6,7 @@ on:
       - "dataset/**"
       - "app/**"
       - ".github/workflows/train.yml"
+    
 
 jobs:
   train:
