@@ -1,0 +1,42 @@
+name: Train Model (Docker CI)
+
+on:
+  push:
+    paths:
+      - "dataset/**"
+      - "app/**"
+      - ".github/workflows/train.yml"
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+
+    # 🔥 prevent infinite loop
+    if: "!contains(github.event.head_commit.message, '[ci-model:]')"
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    # 🐳 Build Docker image
+    - name: Build Docker image
+      run: docker build -t automl .
+
+    # 🚀 Run training (with volume mount)
+    - name: Run training
+      run: |
+        docker run \
+        -v ${{ github.workspace }}:/app \
+        automl
+
+    # 📝 Commit trained model
+    - name: Commit model
+      run: |
+        git config --global user.name "gha-bot"
+        git config --global user.email "gha-bot@users.noreply.github.com"
+
+        SHA=${{ github.sha }}
+
+        git add best_model.pt
+        git commit -m "[ci-model:$SHA] update best model" || echo "no changes"
+        git push
