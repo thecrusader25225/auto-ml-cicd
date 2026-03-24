@@ -7,7 +7,6 @@ on:
       - "app/**"
       - ".github/workflows/train.yml"
     
-
 jobs:
   train:
     runs-on: ubuntu-latest
