@@ -2,104 +2,103 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, random_split
 
-# =====================
-# Data Loading
-# =====================
-X, y = load_iris(return_X_y=True)
+DATA_DIR = "dataset/train"
+BATCH_SIZE = 8
+IMG_SIZE = 64
+EPOCHS = 3
 
-scaler = StandardScaler()
-X = scaler.fit_transform(X)
+# Transform to tensors
+transform = transforms.Compose([
+    transforms.Resize((IMG_SIZE, IMG_SIZE)),
+    transforms.ToTensor(),
+])
 
-X = torch.tensor(X, dtype=torch.float32)
-y = torch.tensor(y, dtype=torch.long)
+# Load dataset
+dataset = datasets.ImageFolder(root=DATA_DIR, transform=transform)
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
+num_classes = len(dataset.classes)
+print("Classes:", dataset.classes)
 
-# =====================
+# Split into train/test
+train_size = int(0.8 * len(dataset))
+test_size = len(dataset) - train_size
+
+train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
+
 # Models
-# =====================
-
-class LinearModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.fc = nn.Linear(4, 3)
-
-    def forward(self, x):
-        return self.fc(x)
-
-
-class DeepModel(nn.Module):
+class SimpleCNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(4, 16),
+            nn.Conv2d(3, 16, 3, padding=1),
             nn.ReLU(),
-            nn.Linear(16, 3)
+            nn.Flatten(),
+            nn.Linear(16 * IMG_SIZE * IMG_SIZE, num_classes)
         )
 
     def forward(self, x):
         return self.net(x)
 
 
-class BiggerModel(nn.Module):
+class DeeperCNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(4, 32),
+            nn.Conv2d(3, 16, 3, padding=1),
             nn.ReLU(),
-            nn.Linear(32, 16),
+            nn.Conv2d(16, 32, 3, padding=1),
             nn.ReLU(),
-            nn.Linear(16, 3)
+            nn.Flatten(),
+            nn.Linear(32 * IMG_SIZE * IMG_SIZE, num_classes)
         )
 
     def forward(self, x):
         return self.net(x)
 
 
-# =====================
-# Train Function
-# =====================
-def train_model(model, X_train, y_train, epochs=50):
+# Train
+def train_model(model, loader):
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    for epoch in range(epochs):
-        model.train()
+    model.train()
+    for _ in range(EPOCHS):
+        for X, y in loader:
+            outputs = model(X)
+            loss = criterion(outputs, y)
 
-        outputs = model(X_train)
-        loss = criterion(outputs, y_train)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
 
-# =====================
-# Evaluation Function
-# =====================
-def evaluate(model, X_test, y_test):
+# Eval
+def evaluate(model, loader):
     model.eval()
+    correct = 0
+    total = 0
+
     with torch.no_grad():
-        outputs = model(X_test)
-        _, preds = torch.max(outputs, 1)
-        accuracy = (preds == y_test).float().mean()
+        for X, y in loader:
+            outputs = model(X)
+            _, preds = torch.max(outputs, 1)
 
-    return accuracy.item()
+            correct += (preds == y).sum().item()
+            total += y.size(0)
+
+    return correct / total
 
 
-# =====================
-# AutoML Loop
-# =====================
+# AutoML loop
 models = {
-    "linear": LinearModel(),
-    "deep": DeepModel(),
-    "bigger": BiggerModel()
+    "simple": SimpleCNN(),
+    "deep": DeeperCNN()
 }
 
 best_model = None
@@ -109,8 +108,8 @@ best_name = ""
 for name, model in models.items():
     print(f"\nTraining: {name}")
 
-    train_model(model, X_train, y_train)
-    score = evaluate(model, X_test, y_test)
+    train_model(model, train_loader)
+    score = evaluate(model, test_loader)
 
     print(f"{name} accuracy: {score:.4f}")
 
@@ -121,9 +120,6 @@ for name, model in models.items():
 
 print(f"\nBest Model: {best_name} ({best_score:.4f})")
 
-# =====================
-# Save Best Model
-# =====================
+# Save model
 torch.save(best_model.state_dict(), "best_model.pt")
-
 print("Saved best_model.pt")
