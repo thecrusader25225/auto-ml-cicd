@@ -1,14 +1,21 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
+import argparse
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, random_split
 
-DATA_DIR = "dataset/train"
 BATCH_SIZE = 8
 IMG_SIZE = 64
 EPOCHS = 3
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--data", type=str, required=True)
+args = parser.parse_args()
+
+DATASET_NAME = args.data.split("/")[-1]   # e.g. data04
+DATA_DIR = f"{args.data}/train"
 
 # Transform to tensors
 transform = transforms.Compose([
@@ -121,5 +128,7 @@ for name, model in models.items():
 print(f"\nBest Model: {best_name} ({best_score:.4f})")
 
 # Save model
-torch.save(best_model.state_dict(), "best_model.pt")
-print("Saved best_model.pt")
+model_filename = f"{DATASET_NAME}_best_{best_name}.pt"
+torch.save(best_model.state_dict(), model_filename)
+print(f"Saved {model_filename}")
+print(f"MODEL_NAME={model_filename}")
